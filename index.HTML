@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>แดชบอร์ดบันทึกการลา — โครงการ</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#F2F6F6; --ink:#12333A; --teal:#0E4F55; --teal-soft:#DDEAEA;
+    --amber:#E8A93D; --red:#C75450; --blue:#527FA6; --card:#FFFFFF;
+    --line:#D8E3E3;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
+  h1,h2,h3,.num{font-family:'Prompt',sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+
+  /* ส่วนหัว */
+  header{background:var(--teal);color:#fff;padding:22px 0 26px}
+  header .wrap{padding-top:0;padding-bottom:0}
+  .eyebrow{font-size:13px;letter-spacing:.12em;opacity:.75;text-transform:uppercase}
+  header h1{font-size:clamp(22px,4vw,30px);font-weight:600;margin-top:4px}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px}
+  select,button{font-family:'Sarabun';font-size:15px;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
+  select option{color:var(--ink)}
+  button.refresh{background:var(--amber);border:none;color:#3A2A08;font-weight:600}
+  #status{font-size:13px;opacity:.8;margin-left:auto}
+
+  /* บอร์ดสถานะวันนี้ (signature) */
+  .today-board{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-top:-14px;box-shadow:0 6px 24px rgba(14,79,85,.08);overflow:hidden}
+  .today-head{display:flex;align-items:baseline;gap:14px;padding:18px 20px 10px;border-bottom:1px dashed var(--line)}
+  .today-head h2{font-size:18px;font-weight:600}
+  .today-count{font-family:'Prompt';font-size:34px;font-weight:700;color:var(--teal)}
+  .today-list{list-style:none}
+  .today-list li{display:grid;grid-template-columns:8px 1fr auto;gap:14px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line)}
+  .today-list li:last-child{border-bottom:none}
+  .bar{width:8px;height:100%;min-height:38px;border-radius:4px;background:var(--teal)}
+  .t-ลาป่วย .bar{background:var(--red)} .t-ลากิจ .bar{background:var(--amber)}
+  .t-ใช้ชั่วโมง .bar{background:var(--blue)} .t-ประชุม .bar{background:#7A9E7E}
+  .t-อบรม .bar{background:#8B6FA8} .t-ภารกิจนอกโครงการ .bar{background:#A67B5B}
+  .who b{font-weight:600}
+  .who small{display:block;color:#5B7278;font-size:13px}
+  .tag{font-size:13px;font-weight:600;background:var(--teal-soft);color:var(--teal);padding:4px 10px;border-radius:99px;white-space:nowrap}
+  .empty{padding:28px 20px;text-align:center;color:#5B7278}
+
+  /* การ์ดสถิติ */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:24px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card .num{font-size:28px;font-weight:700;color:var(--teal)}
+  .card .lbl{font-size:13px;color:#5B7278}
+
+  /* กราฟ */
+  .charts{display:grid;grid-template-columns:1fr 1.4fr;gap:16px;margin-top:24px}
+  @media(max-width:760px){.charts{grid-template-columns:1fr}}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .panel h3{font-size:16px;font-weight:600;margin-bottom:12px}
+
+  /* ตารางรายบุคคล */
+  .table-wrap{overflow-x:auto;margin-top:8px}
+  table{width:100%;border-collapse:collapse;font-size:14px;min-width:640px}
+  th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line)}
+  th{background:var(--teal);color:#fff;font-weight:600;position:sticky;top:0}
+  td.num-cell{text-align:center;font-family:'Prompt'}
+  tr:nth-child(even){background:#F7FAFA}
+  .section-note{font-size:13px;color:#5B7278;margin-top:6px}
+  h2.sec{font-size:19px;font-weight:600;margin:30px 0 4px}
+  :focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="eyebrow">ระบบบันทึกการปฏิบัติงานโครงการ</div>
+    <h1>แดชบอร์ดการลา · ขอใช้ชั่วโมง · ประชุม · อบรม</h1>
+    <div class="toolbar">
+      <select id="selMonth" aria-label="เลือกเดือน"></select>
+      <select id="selYear" aria-label="เลือกปี"></select>
+      <button class="refresh" id="btnRefresh">โหลดข้อมูลใหม่</button>
+      <span id="status">กำลังเชื่อมต่อ…</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- บอร์ดสถานะวันนี้ -->
+  <section class="today-board" aria-label="รายการลาวันนี้">
+    <div class="today-head">
+      <h2 id="todayTitle">วันนี้</h2>
+      <span class="today-count" id="todayCount">–</span>
+      <span style="color:#5B7278;font-size:14px">รายการ</span>
+    </div>
+    <ul class="today-list" id="todayList"><li class="empty">กำลังโหลด…</li></ul>
+  </section>
+
+  <!-- สถิติเดือนที่เลือก -->
+  <h2 class="sec" id="monthTitle">สถิติประจำเดือน</h2>
+  <div class="cards" id="typeCards"></div>
+
+  <div class="charts">
+    <div class="panel"><h3>สัดส่วนตามประเภท</h3><canvas id="chartType" height="240"></canvas></div>
+    <div class="panel"><h3>จำนวนรายการตามหน่วยงาน/หอผู้ป่วย</h3><canvas id="chartWard" height="240"></canvas></div>
+  </div>
+
+  <!-- สรุปรายบุคคล -->
+  <h2 class="sec">สรุปรายบุคคล (ประกอบการพิจารณาผลการปฏิบัติงาน)</h2>
+  <p class="section-note">เรียงจากจำนวนรายการรวมมากไปน้อย · ตัวเลขคือจำนวนครั้งในเดือนที่เลือก · คอลัมน์สุดท้ายคือชั่วโมงสะสมทั้งปี</p>
+  <div class="panel table-wrap">
+    <table id="personTable">
+      <thead><tr>
+        <th>ชื่อ–สกุล</th><th>เลข SAP</th><th>หน่วยงาน</th>
+        <th>ลากิจ</th><th>ลาป่วย</th><th>ใช้ชั่วโมง</th><th>ประชุม</th><th>อบรม</th><th>ภารกิจนอก</th>
+        <th>รวม (เดือน)</th><th>ชม.สะสม (ปี)</th>
+      </tr></thead>
+      <tbody><tr><td colspan="11" class="empty">กำลังโหลด…</td></tr></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+/* ============================================================
+   ตั้งค่า: วางลิงก์ Web App ที่ได้จากการ Deploy ใน Apps Script
+   ============================================================ */
+const API_URL = 'https://script.google.com/macros/s/AKfycbw1EeLGBwrXC-ozsbFbzsPAVhQYzx14DtyHKqLUyY8T1VOLxcIaS6fc1gYCXz5ZeOFP8g/exec'; // เช่น https://script.google.com/macros/s/XXXX/exec
+
+const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                     'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const TYPE_COLORS = {'ลากิจ':'#E8A93D','ลาป่วย':'#C75450','ใช้ชั่วโมง':'#527FA6',
+                     'ประชุม':'#7A9E7E','อบรม':'#8B6FA8','ภารกิจนอกโครงการ':'#A67B5B'};
+let chartType=null, chartWard=null, yearlyPersonHours={};
+
+function initSelectors(){
+  const now=new Date(), m=document.getElementById('selMonth'), y=document.getElementById('selYear');
+  THAI_MONTHS.forEach((n,i)=>m.add(new Option(n,i+1)));
+  m.value=now.getMonth()+1;
+  for(let yy=now.getFullYear();yy>=now.getFullYear()-3;yy--)
+    y.add(new Option('พ.ศ. '+(yy+543),yy));
+  y.value=now.getFullYear();
+}
+
+async function load(){
+  const status=document.getElementById('status');
+  const month=document.getElementById('selMonth').value;
+  const year=document.getElementById('selYear').value;
+  status.textContent='กำลังโหลด…';
+  try{
+    const res=await fetch(`${API_URL}?month=${month}&year=${year}`);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    yearlyPersonHours={};
+    (data.yearly.byPerson||[]).forEach(p=>yearlyPersonHours[p.sap]=p.hours);
+    renderToday(data.today);
+    renderMonth(data.monthly, month, year, data.types);
+    status.textContent='อัปเดตล่าสุด '+data.generatedAt;
+  }catch(err){
+    status.textContent='เชื่อมต่อไม่สำเร็จ — ตรวจสอบ API_URL และการ Deploy';
+    console.error(err);
+  }
+}
+
+function renderToday(list){
+  const now=new Date();
+  document.getElementById('todayTitle').textContent=
+    'วันนี้ · '+now.getDate()+' '+THAI_MONTHS[now.getMonth()]+' '+(now.getFullYear()+543);
+  document.getElementById('todayCount').textContent=list.length;
+  const ul=document.getElementById('todayList');
+  ul.innerHTML='';
+  if(!list.length){ul.innerHTML='<li class="empty">ไม่มีรายการลา/ขอชั่วโมงในวันนี้ — บุคลากรปฏิบัติงานครบ</li>';return;}
+  list.forEach(r=>{
+    const li=document.createElement('li');
+    li.className='t-'+r.type;
+    const time=(r.startTime&&r.endTime)?` · ${r.startTime}–${r.endTime} น.`:'';
+    li.innerHTML=`<span class="bar"></span>
+      <span class="who"><b>${esc(r.name)}</b>
+      <small>SAP ${esc(r.sap)} · ${esc(r.ward)}${time}${r.note?' · '+esc(r.note):''}</small></span>
+      <span class="tag">${esc(r.type)}</span>`;
+    ul.appendChild(li);
+  });
+}
+
+function renderMonth(m, month, year, types){
+  document.getElementById('monthTitle').textContent=
+    'สถิติประจำเดือน '+THAI_MONTHS[month-1]+' พ.ศ. '+(parseInt(year)+543)+
+    ' · รวม '+m.totalRecords+' รายการ';
+
+  // การ์ดตามประเภท
+  const cards=document.getElementById('typeCards');
+  cards.innerHTML='';
+  types.forEach(t=>{
+    cards.insertAdjacentHTML('beforeend',
+      `<div class="card"><div class="num" style="color:${TYPE_COLORS[t]||'#0E4F55'}">${m.byType[t]||0}</div>
+       <div class="lbl">${t}</div></div>`);
+  });
+
+  // กราฟประเภท (doughnut)
+  if(chartType) chartType.destroy();
+  chartType=new Chart(document.getElementById('chartType'),{
+    type:'doughnut',
+    data:{labels:types,datasets:[{data:types.map(t=>m.byType[t]||0),
+      backgroundColor:types.map(t=>TYPE_COLORS[t])}]},
+    options:{plugins:{legend:{position:'bottom',labels:{font:{family:'Sarabun'}}}}}
+  });
+
+  // กราฟหน่วยงาน (bar)
+  const wards=Object.keys(m.byWard).sort((a,b)=>m.byWard[b]-m.byWard[a]);
+  if(chartWard) chartWard.destroy();
+  chartWard=new Chart(document.getElementById('chartWard'),{
+    type:'bar',
+    data:{labels:wards,datasets:[{data:wards.map(w=>m.byWard[w]),
+      backgroundColor:'#0E4F55',borderRadius:6}]},
+    options:{plugins:{legend:{display:false}},
+      scales:{x:{ticks:{font:{family:'Sarabun'}}},y:{beginAtZero:true,ticks:{precision:0}}}}
+  });
+
+  // ตารางรายบุคคล
+  const tb=document.querySelector('#personTable tbody');
+  tb.innerHTML='';
+  if(!m.byPerson.length){tb.innerHTML='<tr><td colspan="11" class="empty">ไม่มีข้อมูลในเดือนนี้</td></tr>';return;}
+  m.byPerson.forEach(p=>{
+    tb.insertAdjacentHTML('beforeend',`<tr>
+      <td>${esc(p.name)}</td><td>${esc(p.sap)}</td><td>${esc(p.ward)}</td>
+      <td class="num-cell">${p.counts['ลากิจ']||0}</td>
+      <td class="num-cell">${p.counts['ลาป่วย']||0}</td>
+      <td class="num-cell">${p.counts['ใช้ชั่วโมง']||0}</td>
+      <td class="num-cell">${p.counts['ประชุม']||0}</td>
+      <td class="num-cell">${p.counts['อบรม']||0}</td>
+      <td class="num-cell">${p.counts['ภารกิจนอกโครงการ']||0}</td>
+      <td class="num-cell"><b>${p.total}</b></td>
+      <td class="num-cell">${(yearlyPersonHours[p.sap]||0).toFixed(1)}</td>
+    </tr>`);
+  });
+}
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+initSelectors();
+document.getElementById('btnRefresh').addEventListener('click',load);
+document.getElementById('selMonth').addEventListener('change',load);
+document.getElementById('selYear').addEventListener('change',load);
+load();
+setInterval(load, 5*60*1000); // รีเฟรชอัตโนมัติทุก 5 นาที
+</script>
+</body>
+</html>
